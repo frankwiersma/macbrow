@@ -1,0 +1,568 @@
+[
+  {
+    "name": "set_volume",
+    "description": "Change the Mac's output volume: mute, unmute, louder, quieter, or max.",
+    "scope": null,
+    "args": [
+      {
+        "name": "level",
+        "kind": "enum",
+        "instructions": "How does the user want the system volume changed?",
+        "criteria": {
+          "mute": "Silence all audio output",
+          "unmute": "Restore audio output after muting",
+          "louder": "Increase the volume somewhat",
+          "quieter": "Decrease the volume somewhat",
+          "max": "Set the volume to maximum"
+        }
+      }
+    ],
+    "script": "set lvl to \"{{level}}\"\nif lvl is \"mute\" then\n  set volume with output muted\nelse if lvl is \"unmute\" then\n  set volume without output muted\nelse if lvl is \"max\" then\n  set volume output volume 100 without output muted\nelse\n  set cur to output volume of (get volume settings)\n  if lvl is \"louder\" then\n    set volume output volume (cur + 15) without output muted\n  else\n    set volume output volume (cur - 15)\n  end if\nend if\nreturn \"volume \" & (output volume of (get volume settings))",
+    "speak": "done",
+    "examples": [
+      "mute",
+      "turn it down",
+      "make it louder",
+      "volume to max"
+    ]
+  },
+  {
+    "name": "open_app",
+    "description": "Open, launch, or switch to an application and bring its window to the front (Chrome opens a new window in your work profile).",
+    "scope": null,
+    "args": [
+      {
+        "name": "app",
+        "kind": "enum",
+        "instructions": "Which application does the user want opened or brought to the front?",
+        "dynamic": "apps"
+      }
+    ],
+    "script": "if \"{{app}}\" is \"Google Chrome\" then\n  set homeArg to \"\"\n  if \"{{chrome_home}}\" is not \"\" then set homeArg to \" \" & quoted form of \"{{chrome_home}}\"\n  do shell script \"open -na 'Google Chrome' --args \" & quoted form of (\"--profile-directory=\" & \"{{chrome_profile}}\") & \" --new-window\" & homeArg\nelse\n  tell application \"{{app}}\" to activate\nend if\nrepeat 15 times\n  delay 0.2\n  tell application \"System Events\" to set frontName to name of first application process whose frontmost is true\n  if frontName is \"{{app}}\" then exit repeat\n  try\n    tell application \"System Events\" to set frontmost of process \"{{app}}\" to true\n  end try\nend repeat\ntry\n  tell application \"{{app}}\"\n    if (count of windows) = 0 then reopen\n  end tell\nend try\nif frontName is \"{{app}}\" then return \"{{app}} is in front\"\nreturn \"{{app}} launched, but \" & frontName & \" is still in front\"",
+    "speak": "result",
+    "examples": [
+      "open Slack",
+      "switch to Terminal",
+      "go back to Chrome",
+      "launch Spotify"
+    ],
+    "not_for": "Websites, URLs, web searches, or anything the user says to do 'in the browser' or 'from the browser'; those belong to a browser tool (safari_open / chrome_open)."
+  },
+  {
+    "name": "quit_app",
+    "description": "Quit a running application.",
+    "scope": null,
+    "args": [
+      {
+        "name": "app",
+        "kind": "enum",
+        "instructions": "Which running application does the user want to quit?",
+        "dynamic": "running_apps"
+      }
+    ],
+    "script": "tell application \"{{app}}\" to quit\nreturn \"{{app}} closed\"",
+    "speak": "result",
+    "examples": [
+      "quit Slack",
+      "close Spotify",
+      "exit Safari"
+    ]
+  },
+  {
+    "name": "hide_others",
+    "description": "Hide every application except the one in front.",
+    "scope": null,
+    "script": "tell application \"System Events\" to set visible of every application process whose frontmost is false and background only is false to false\nreturn \"hid other apps\"",
+    "speak": "done",
+    "examples": [
+      "hide everything else",
+      "clear the desktop"
+    ]
+  },
+  {
+    "name": "toggle_dark_mode",
+    "description": "Toggle macOS dark mode on or off.",
+    "scope": null,
+    "script": "tell application \"System Events\" to tell appearance preferences to set dark mode to not dark mode\ntell application \"System Events\" to tell appearance preferences to return \"dark mode \" & dark mode",
+    "speak": "result",
+    "examples": [
+      "turn on dark mode",
+      "switch to light mode"
+    ]
+  },
+  {
+    "name": "show_notification",
+    "description": "Show a macOS notification banner with a message the user dictates.",
+    "scope": null,
+    "args": [
+      {
+        "name": "message",
+        "kind": "text",
+        "instructions": "The exact message text the user wants displayed in the notification."
+      }
+    ],
+    "script": "display notification \"{{message}}\" with title \"macbrow\"\nreturn \"notified\"",
+    "speak": "done",
+    "examples": [
+      "remind me on screen to drink water",
+      "show a notification saying standup in five"
+    ]
+  },
+  {
+    "name": "take_screenshot",
+    "description": "Capture the whole screen to a timestamped PNG on the Desktop.",
+    "scope": null,
+    "script": "set ts to do shell script \"date +%Y-%m-%d_%H.%M.%S\"\nset p to (POSIX path of (path to desktop)) & \"Screenshot_\" & ts & \".png\"\ndo shell script \"screencapture -x \" & quoted form of p\nreturn \"saved to Desktop\"",
+    "speak": "result",
+    "examples": [
+      "take a screenshot",
+      "grab the screen"
+    ]
+  },
+  {
+    "name": "lock_screen",
+    "description": "Lock the screen immediately.",
+    "scope": null,
+    "script": "do shell script \"open -a ScreenSaverEngine\"\nreturn \"locked\"",
+    "speak": "done",
+    "examples": [
+      "lock my screen",
+      "lock the mac"
+    ]
+  },
+  {
+    "name": "empty_trash",
+    "description": "Empty the Finder trash (destructive, asks for confirmation).",
+    "scope": null,
+    "risky": true,
+    "script": "tell application \"Finder\" to empty trash\nreturn \"trash emptied\"",
+    "speak": "done",
+    "examples": [
+      "empty the trash"
+    ]
+  },
+  {
+    "name": "safari_get_url",
+    "description": "Read out the URL of the current Safari tab.",
+    "scope": "Safari",
+    "script": "tell application \"Safari\"\n  if (count of windows) = 0 then return \"no Safari window is open\"\nend tell\ntell application \"Safari\" to return URL of front document",
+    "speak": "The current page is {result}",
+    "examples": [
+      "what page am I on",
+      "read me the URL"
+    ]
+  },
+  {
+    "name": "safari_open",
+    "description": "Open a well-known site (YouTube, Gmail, Google Calendar, GitHub...), a URL, or a web search in a new Safari tab.",
+    "scope": "Safari",
+    "args": [
+      {
+        "name": "site",
+        "kind": "enum",
+        "instructions": "If the user named a well-known website, which one? Otherwise choose other.",
+        "criteria": {
+          "other": "Not a well-known site name; treat the query as a URL or web search",
+          "youtube": null,
+          "gmail": null,
+          "google_calendar": "Google Calendar",
+          "google_drive": "Google Drive",
+          "google_docs": "Google Docs",
+          "google_maps": null,
+          "github": null,
+          "x_twitter": "X, formerly Twitter",
+          "linkedin": null,
+          "notion": null,
+          "slack_web": "Slack in the browser",
+          "figma": null,
+          "chatgpt": null,
+          "claude": "claude.ai",
+          "reddit": null,
+          "wikipedia": null,
+          "amazon": null,
+          "netflix": null,
+          "spotify_web": "Spotify web player",
+          "hacker_news": null,
+          "stack_overflow": null,
+          "hugging_face": null,
+          "linear": null,
+          "vercel": null,
+          "livekit": "LiveKit docs or cloud",
+          "gradium": "gradium.ai",
+          "typesafe": "typesafe.ai",
+          "outlook": null,
+          "whatsapp_web": "WhatsApp Web"
+        },
+        "default": "other"
+      },
+      {
+        "name": "query",
+        "kind": "text",
+        "instructions": "What to open: the site name, a URL, or the search phrase (for 'search YouTube for X', just X).",
+        "default": ""
+      }
+    ],
+    "script": "set site to \"{{site}}\"\nset q to \"{{query}}\"\n-- a phrase beyond the site name itself means: search within that site\nset siteWord to site\nset AppleScript's text item delimiters to \"_\"\nset siteWord to (text items of site) as text\nset AppleScript's text item delimiters to \" \"\nset enc to (text items of q) as text\nset AppleScript's text item delimiters to \"+\"\nset enc to (text items of enc) as text\nset AppleScript's text item delimiters to \"\"\nset hasPhrase to (q is not \"\") and (q does not contain siteWord)\nif site is \"other\" then\n  if q contains \".\" and q does not contain \" \" then\n    if q does not start with \"http\" then set q to \"https://\" & q\n  else\n    set q to \"https://www.google.com/search?q=\" & enc\n  end if\n  else if site is \"youtube\" then\n    if hasPhrase then\n      set q to \"https://www.youtube.com/results?search_query=\" & enc\n    else\n      set q to \"https://www.youtube.com\"\n    end if\n  else if site is \"gmail\" then\n    if hasPhrase then\n      set q to \"https://mail.google.com/mail/#search/\" & enc\n    else\n      set q to \"https://mail.google.com\"\n    end if\n  else if site is \"google_calendar\" then\n    set q to \"https://calendar.google.com\"\n  else if site is \"google_drive\" then\n    if hasPhrase then\n      set q to \"https://drive.google.com/drive/search?q=\" & enc\n    else\n      set q to \"https://drive.google.com\"\n    end if\n  else if site is \"google_docs\" then\n    set q to \"https://docs.google.com\"\n  else if site is \"google_maps\" then\n    if hasPhrase then\n      set q to \"https://www.google.com/maps/search/\" & enc\n    else\n      set q to \"https://maps.google.com\"\n    end if\n  else if site is \"github\" then\n    if hasPhrase then\n      set q to \"https://github.com/search?q=\" & enc\n    else\n      set q to \"https://github.com\"\n    end if\n  else if site is \"x_twitter\" then\n    if hasPhrase then\n      set q to \"https://x.com/search?q=\" & enc\n    else\n      set q to \"https://x.com\"\n    end if\n  else if site is \"linkedin\" then\n    if hasPhrase then\n      set q to \"https://www.linkedin.com/search/results/all/?keywords=\" & enc\n    else\n      set q to \"https://www.linkedin.com\"\n    end if\n  else if site is \"notion\" then\n    set q to \"https://www.notion.so\"\n  else if site is \"slack_web\" then\n    set q to \"https://app.slack.com\"\n  else if site is \"figma\" then\n    set q to \"https://www.figma.com\"\n  else if site is \"chatgpt\" then\n    set q to \"https://chatgpt.com\"\n  else if site is \"claude\" then\n    set q to \"https://claude.ai\"\n  else if site is \"reddit\" then\n    if hasPhrase then\n      set q to \"https://www.reddit.com/search/?q=\" & enc\n    else\n      set q to \"https://www.reddit.com\"\n    end if\n  else if site is \"wikipedia\" then\n    if hasPhrase then\n      set q to \"https://en.wikipedia.org/w/index.php?search=\" & enc\n    else\n      set q to \"https://www.wikipedia.org\"\n    end if\n  else if site is \"amazon\" then\n    if hasPhrase then\n      set q to \"https://www.amazon.com/s?k=\" & enc\n    else\n      set q to \"https://www.amazon.com\"\n    end if\n  else if site is \"netflix\" then\n    if hasPhrase then\n      set q to \"https://www.netflix.com/search?q=\" & enc\n    else\n      set q to \"https://www.netflix.com\"\n    end if\n  else if site is \"spotify_web\" then\n    if hasPhrase then\n      set q to \"https://open.spotify.com/search/\" & enc\n    else\n      set q to \"https://open.spotify.com\"\n    end if\n  else if site is \"hacker_news\" then\n    set q to \"https://news.ycombinator.com\"\n  else if site is \"stack_overflow\" then\n    if hasPhrase then\n      set q to \"https://stackoverflow.com/search?q=\" & enc\n    else\n      set q to \"https://stackoverflow.com\"\n    end if\n  else if site is \"hugging_face\" then\n    if hasPhrase then\n      set q to \"https://huggingface.co/search/full-text?q=\" & enc\n    else\n      set q to \"https://huggingface.co\"\n    end if\n  else if site is \"linear\" then\n    set q to \"https://linear.app\"\n  else if site is \"vercel\" then\n    set q to \"https://vercel.com\"\n  else if site is \"livekit\" then\n    set q to \"https://docs.livekit.io\"\n  else if site is \"gradium\" then\n    set q to \"https://gradium.ai\"\n  else if site is \"typesafe\" then\n    set q to \"https://typesafe.ai\"\n  else if site is \"outlook\" then\n    set q to \"https://outlook.live.com\"\n  else if site is \"whatsapp_web\" then\n    set q to \"https://web.whatsapp.com\"\nend if\ntell application \"Safari\"\n  activate\n  if (count of windows) = 0 then make new window\n  tell front window to set current tab to (make new tab with properties {URL:q})\nend tell\nreturn q",
+    "speak": "done",
+    "examples": [
+      "open github dot com",
+      "go to youtube",
+      "go to my google calendar from the browser",
+      "search for weather in Paris",
+      "search youtube for the love hypothesis"
+    ]
+  },
+  {
+    "name": "safari_new_tab",
+    "description": "Open a blank new tab in Safari.",
+    "scope": "Safari",
+    "script": "tell application \"Safari\"\n  if (count of windows) = 0 then return \"no Safari window is open\"\nend tell\ntell application \"Safari\"\n  activate\n  tell front window to set current tab to (make new tab)\nend tell\nreturn \"new tab\"",
+    "speak": "done",
+    "examples": [
+      "new tab"
+    ]
+  },
+  {
+    "name": "safari_close_tab",
+    "description": "Close the current Safari tab.",
+    "scope": "Safari",
+    "script": "tell application \"Safari\"\n  if (count of windows) = 0 then return \"no Safari window is open\"\nend tell\ntell application \"Safari\" to close current tab of front window\nreturn \"closed tab\"",
+    "speak": "done",
+    "examples": [
+      "close this tab"
+    ]
+  },
+  {
+    "name": "safari_close_all_tabs",
+    "description": "Close every tab in the front Safari window (the whole window closes).",
+    "scope": "Safari",
+    "script": "tell application \"Safari\"\n  if (count of windows) = 0 then return \"no window open\"\n  set n to count of tabs of front window\n  close front window\n  return \"closed \" & n & \" tabs\"\nend tell",
+    "speak": "result",
+    "examples": [
+      "close all my tabs",
+      "close this Safari window"
+    ],
+    "not_for": "Closing just the current tab (safari_close_tab)."
+  },
+  {
+    "name": "safari_reload",
+    "description": "Reload the current Safari page.",
+    "scope": "Safari",
+    "script": "tell application \"Safari\"\n  if (count of windows) = 0 then return \"no Safari window is open\"\nend tell\ntell application \"Safari\" to tell front document to set URL to (get URL)\nreturn \"reloaded\"",
+    "speak": "done",
+    "examples": [
+      "refresh the page",
+      "reload"
+    ]
+  },
+  {
+    "name": "safari_back",
+    "description": "Go back one page in Safari.",
+    "scope": "Safari",
+    "script": "tell application \"Safari\"\n  if (count of windows) = 0 then return \"no Safari window is open\"\nend tell\ntell application \"Safari\" to do JavaScript \"history.back()\" in current tab of front window\nreturn \"back\"",
+    "speak": "done",
+    "examples": [
+      "go back"
+    ]
+  },
+  {
+    "name": "chrome_get_url",
+    "description": "Read out the URL of the current Google Chrome tab.",
+    "scope": "Google Chrome",
+    "script": "tell application \"Google Chrome\"\n  if (count of windows) = 0 then return \"no Chrome window is open\"\nend tell\ntell application \"Google Chrome\" to return URL of active tab of front window",
+    "speak": "The current page is {result}",
+    "examples": [
+      "what page am I on",
+      "read me the URL"
+    ]
+  },
+  {
+    "name": "chrome_open",
+    "description": "Open a well-known site (YouTube, Gmail, Google Calendar, GitHub...), a URL, or a web search in a new Google Chrome tab.",
+    "scope": "Google Chrome",
+    "args": [
+      {
+        "name": "site",
+        "kind": "enum",
+        "instructions": "If the user named a well-known website, which one? Otherwise choose other.",
+        "criteria": {
+          "other": "Not a well-known site name; treat the query as a URL or web search",
+          "youtube": null,
+          "gmail": null,
+          "google_calendar": "Google Calendar",
+          "google_drive": "Google Drive",
+          "google_docs": "Google Docs",
+          "google_maps": null,
+          "github": null,
+          "x_twitter": "X, formerly Twitter",
+          "linkedin": null,
+          "notion": null,
+          "slack_web": "Slack in the browser",
+          "figma": null,
+          "chatgpt": null,
+          "claude": "claude.ai",
+          "reddit": null,
+          "wikipedia": null,
+          "amazon": null,
+          "netflix": null,
+          "spotify_web": "Spotify web player",
+          "hacker_news": null,
+          "stack_overflow": null,
+          "hugging_face": null,
+          "linear": null,
+          "vercel": null,
+          "livekit": "LiveKit docs or cloud",
+          "gradium": "gradium.ai",
+          "typesafe": "typesafe.ai",
+          "outlook": null,
+          "whatsapp_web": "WhatsApp Web"
+        },
+        "default": "other"
+      },
+      {
+        "name": "query",
+        "kind": "text",
+        "instructions": "What to open: the site name, a URL, or the search phrase (for 'search YouTube for X', just X).",
+        "default": ""
+      }
+    ],
+    "script": "set site to \"{{site}}\"\nset q to \"{{query}}\"\n-- a phrase beyond the site name itself means: search within that site\nset siteWord to site\nset AppleScript's text item delimiters to \"_\"\nset siteWord to (text items of site) as text\nset AppleScript's text item delimiters to \" \"\nset enc to (text items of q) as text\nset AppleScript's text item delimiters to \"+\"\nset enc to (text items of enc) as text\nset AppleScript's text item delimiters to \"\"\nset hasPhrase to (q is not \"\") and (q does not contain siteWord)\nif site is \"other\" then\n  if q contains \".\" and q does not contain \" \" then\n    if q does not start with \"http\" then set q to \"https://\" & q\n  else\n    set q to \"https://www.google.com/search?q=\" & enc\n  end if\n  else if site is \"youtube\" then\n    if hasPhrase then\n      set q to \"https://www.youtube.com/results?search_query=\" & enc\n    else\n      set q to \"https://www.youtube.com\"\n    end if\n  else if site is \"gmail\" then\n    if hasPhrase then\n      set q to \"https://mail.google.com/mail/#search/\" & enc\n    else\n      set q to \"https://mail.google.com\"\n    end if\n  else if site is \"google_calendar\" then\n    set q to \"https://calendar.google.com\"\n  else if site is \"google_drive\" then\n    if hasPhrase then\n      set q to \"https://drive.google.com/drive/search?q=\" & enc\n    else\n      set q to \"https://drive.google.com\"\n    end if\n  else if site is \"google_docs\" then\n    set q to \"https://docs.google.com\"\n  else if site is \"google_maps\" then\n    if hasPhrase then\n      set q to \"https://www.google.com/maps/search/\" & enc\n    else\n      set q to \"https://maps.google.com\"\n    end if\n  else if site is \"github\" then\n    if hasPhrase then\n      set q to \"https://github.com/search?q=\" & enc\n    else\n      set q to \"https://github.com\"\n    end if\n  else if site is \"x_twitter\" then\n    if hasPhrase then\n      set q to \"https://x.com/search?q=\" & enc\n    else\n      set q to \"https://x.com\"\n    end if\n  else if site is \"linkedin\" then\n    if hasPhrase then\n      set q to \"https://www.linkedin.com/search/results/all/?keywords=\" & enc\n    else\n      set q to \"https://www.linkedin.com\"\n    end if\n  else if site is \"notion\" then\n    set q to \"https://www.notion.so\"\n  else if site is \"slack_web\" then\n    set q to \"https://app.slack.com\"\n  else if site is \"figma\" then\n    set q to \"https://www.figma.com\"\n  else if site is \"chatgpt\" then\n    set q to \"https://chatgpt.com\"\n  else if site is \"claude\" then\n    set q to \"https://claude.ai\"\n  else if site is \"reddit\" then\n    if hasPhrase then\n      set q to \"https://www.reddit.com/search/?q=\" & enc\n    else\n      set q to \"https://www.reddit.com\"\n    end if\n  else if site is \"wikipedia\" then\n    if hasPhrase then\n      set q to \"https://en.wikipedia.org/w/index.php?search=\" & enc\n    else\n      set q to \"https://www.wikipedia.org\"\n    end if\n  else if site is \"amazon\" then\n    if hasPhrase then\n      set q to \"https://www.amazon.com/s?k=\" & enc\n    else\n      set q to \"https://www.amazon.com\"\n    end if\n  else if site is \"netflix\" then\n    if hasPhrase then\n      set q to \"https://www.netflix.com/search?q=\" & enc\n    else\n      set q to \"https://www.netflix.com\"\n    end if\n  else if site is \"spotify_web\" then\n    if hasPhrase then\n      set q to \"https://open.spotify.com/search/\" & enc\n    else\n      set q to \"https://open.spotify.com\"\n    end if\n  else if site is \"hacker_news\" then\n    set q to \"https://news.ycombinator.com\"\n  else if site is \"stack_overflow\" then\n    if hasPhrase then\n      set q to \"https://stackoverflow.com/search?q=\" & enc\n    else\n      set q to \"https://stackoverflow.com\"\n    end if\n  else if site is \"hugging_face\" then\n    if hasPhrase then\n      set q to \"https://huggingface.co/search/full-text?q=\" & enc\n    else\n      set q to \"https://huggingface.co\"\n    end if\n  else if site is \"linear\" then\n    set q to \"https://linear.app\"\n  else if site is \"vercel\" then\n    set q to \"https://vercel.com\"\n  else if site is \"livekit\" then\n    set q to \"https://docs.livekit.io\"\n  else if site is \"gradium\" then\n    set q to \"https://gradium.ai\"\n  else if site is \"typesafe\" then\n    set q to \"https://typesafe.ai\"\n  else if site is \"outlook\" then\n    set q to \"https://outlook.live.com\"\n  else if site is \"whatsapp_web\" then\n    set q to \"https://web.whatsapp.com\"\nend if\ndo shell script \"open -na 'Google Chrome' --args \" & quoted form of (\"--profile-directory=\" & \"{{chrome_profile}}\") & \" \" & quoted form of q\nrepeat 15 times\n  delay 0.2\n  tell application \"System Events\" to set frontName to name of first application process whose frontmost is true\n  if frontName is \"Google Chrome\" then exit repeat\n  try\n    tell application \"System Events\" to set frontmost of process \"Google Chrome\" to true\n  end try\nend repeat\ntry\n  tell application \"Google Chrome\"\n    if (count of windows) = 0 then reopen\n  end tell\nend try\nif frontName is \"Google Chrome\" then return q\nreturn q",
+    "speak": "done",
+    "examples": [
+      "open github dot com",
+      "go to youtube",
+      "go to my google calendar from the browser",
+      "search for weather in Paris",
+      "search youtube for the love hypothesis"
+    ]
+  },
+  {
+    "name": "youtube_play",
+    "description": "Find a video on YouTube and start playing it in Chrome (first search result).",
+    "scope": null,
+    "args": [
+      {
+        "name": "query",
+        "kind": "text",
+        "instructions": "What the user wants to watch: the video, trailer, song, or topic to search on YouTube."
+      }
+    ],
+    "computed": {
+      "video_url": {
+        "fn": "youtube_first_result",
+        "from": "query"
+      }
+    },
+    "script": "set vurl to \"{{video_url}}\"\ndo shell script \"open -na 'Google Chrome' --args \" & quoted form of (\"--profile-directory=\" & \"{{chrome_profile}}\") & \" \" & quoted form of vurl\nrepeat 15 times\n  delay 0.2\n  tell application \"System Events\" to set frontName to name of first application process whose frontmost is true\n  if frontName is \"Google Chrome\" then exit repeat\n  try\n    tell application \"System Events\" to set frontmost of process \"Google Chrome\" to true\n  end try\nend repeat\nreturn \"playing\"",
+    "speak": "done",
+    "examples": [
+      "play the love hypothesis trailer",
+      "play some lo-fi beats on youtube",
+      "put on the new Dune trailer",
+      "play Bohemian Rhapsody"
+    ],
+    "not_for": "Music app or Spotify playback; opening YouTube without a specific video."
+  },
+  {
+    "name": "web_task",
+    "description": "Carry out a multi-step task inside a website in Chrome: search on a site and pick a result, add something to a cart or list, fill in a form, draft an email, find and read a specific thing on a page.",
+    "scope": null,
+    "runner": "browser",
+    "args": [
+      {
+        "name": "site",
+        "kind": "enum",
+        "instructions": "Which website should the task start on?",
+        "criteria": {
+          "amazon": "Amazon shopping",
+          "gmail": "Gmail / email",
+          "google": "Google search or an unspecified site (non-shopping)",
+          "youtube": "YouTube",
+          "x_twitter": "X / Twitter",
+          "linkedin": "LinkedIn",
+          "github": "GitHub",
+          "google_calendar": "Google Calendar",
+          "google_drive": "Google Drive / Docs",
+          "notion": "Notion",
+          "other": "Any other website",
+          "google_flights": "Google Flights: searching or comparing flights, airfares, travel dates",
+          "google_maps": "Google Maps: places, directions, addresses",
+          "google_shopping": "Shopping for a product or comparing prices across stores when no specific retailer is named"
+        }
+      }
+    ],
+    "script": "",
+    "speak": "result",
+    "examples": [
+      "go to amazon and search for the best vacuum cleaner and add it to my cart",
+      "on gmail draft an email to alex saying the demo is at 3",
+      "find me cheap flights from paris to tokyo in october",
+      "open linkedin and accept my pending connection requests"
+    ],
+    "not_for": "Just opening a site or a plain search (chrome_open); playing a YouTube video (youtube_play); managing tabs or windows: closing, switching, reloading, going back (chrome_* / safari_* tools)."
+  },
+  {
+    "name": "chrome_close_tab",
+    "description": "Close the current Google Chrome tab.",
+    "scope": "Google Chrome",
+    "script": "tell application \"Google Chrome\"\n  if (count of windows) = 0 then return \"no Chrome window is open\"\nend tell\ntell application \"Google Chrome\" to close active tab of front window\nreturn \"closed tab\"",
+    "speak": "done",
+    "examples": [
+      "close this tab"
+    ],
+    "not_for": "Closing all tabs or the whole window (chrome_close_all_tabs)."
+  },
+  {
+    "name": "chrome_close_all_tabs",
+    "description": "Close every tab in the front Google Chrome window (the whole window closes).",
+    "scope": "Google Chrome",
+    "script": "tell application \"Google Chrome\"\n  if (count of windows) = 0 then return \"no window open\"\n  set n to count of tabs of front window\n  close front window\n  return \"closed \" & n & \" tabs\"\nend tell",
+    "speak": "result",
+    "examples": [
+      "close all my tabs",
+      "close all the tabs in this window",
+      "close the whole Chrome window"
+    ],
+    "not_for": "Closing just the current tab (chrome_close_tab) or quitting Chrome (quit_app)."
+  },
+  {
+    "name": "chrome_reload",
+    "description": "Reload the current Google Chrome page.",
+    "scope": "Google Chrome",
+    "script": "tell application \"Google Chrome\"\n  if (count of windows) = 0 then return \"no Chrome window is open\"\nend tell\ntell application \"Google Chrome\" to reload active tab of front window\nreturn \"reloaded\"",
+    "speak": "done",
+    "examples": [
+      "refresh",
+      "reload the page"
+    ]
+  },
+  {
+    "name": "finder_open_folder",
+    "description": "Open a common folder in a new Finder window.",
+    "scope": null,
+    "args": [
+      {
+        "name": "folder",
+        "kind": "enum",
+        "instructions": "Which folder does the user want to open?",
+        "criteria": {
+          "desktop": null,
+          "downloads": null,
+          "documents": null,
+          "home": "The user's home folder",
+          "applications": null
+        }
+      }
+    ],
+    "script": "set f to \"{{folder}}\"\nif f is \"desktop\" then\n  set p to path to desktop\nelse if f is \"downloads\" then\n  set p to path to downloads folder\nelse if f is \"documents\" then\n  set p to path to documents folder\nelse if f is \"applications\" then\n  set p to path to applications folder\nelse\n  set p to path to home folder\nend if\ntell application \"Finder\"\n  activate\n  open p\nend tell\nreturn \"opened \" & f",
+    "speak": "done",
+    "examples": [
+      "open my downloads",
+      "show the desktop folder"
+    ]
+  },
+  {
+    "name": "notes_create",
+    "description": "Create a new note in Apple Notes with dictated text.",
+    "scope": null,
+    "args": [
+      {
+        "name": "body",
+        "kind": "text",
+        "instructions": "The text the user wants written into the new note."
+      }
+    ],
+    "script": "tell application \"Notes\"\n  activate\n  make new note at folder \"Notes\" with properties {body:\"{{body}}\"}\nend tell\nreturn \"note created\"",
+    "speak": "done",
+    "examples": [
+      "make a note that says call the dentist",
+      "new note: ideas for the demo"
+    ]
+  },
+  {
+    "name": "music_play_pause",
+    "description": "Play or pause the Music app.",
+    "scope": "Music",
+    "script": "tell application \"Music\" to playpause\ntell application \"Music\" to return (player state as string)",
+    "speak": "result",
+    "examples": [
+      "pause the music",
+      "play"
+    ],
+    "not_for": "Asking what is playing."
+  },
+  {
+    "name": "music_next",
+    "description": "Skip to the next track in Music.",
+    "scope": "Music",
+    "script": "tell application \"Music\"\n  next track\n  return name of current track & \" by \" & artist of current track\nend tell",
+    "speak": "Now playing {result}",
+    "examples": [
+      "next song",
+      "skip this"
+    ]
+  },
+  {
+    "name": "music_now_playing",
+    "description": "Say which track is currently playing in the Music app.",
+    "scope": "Music",
+    "script": "tell application \"Music\"\n  if player state is stopped then return \"nothing is playing\"\n  return name of current track & \" by \" & artist of current track\nend tell",
+    "speak": "This is {result}",
+    "examples": [
+      "what song is this",
+      "who sings this",
+      "what's playing"
+    ]
+  },
+  {
+    "name": "spotify_play_pause",
+    "description": "Play or pause Spotify.",
+    "scope": "Spotify",
+    "script": "tell application \"Spotify\" to playpause\ntell application \"Spotify\" to return (player state as string)",
+    "speak": "result",
+    "examples": [
+      "pause spotify",
+      "resume the music"
+    ]
+  },
+  {
+    "name": "spotify_next",
+    "description": "Skip to the next track in Spotify.",
+    "scope": "Spotify",
+    "script": "tell application \"Spotify\"\n  next track\n  delay 0.5\n  return name of current track & \" by \" & artist of current track\nend tell",
+    "speak": "Now playing {result}",
+    "examples": [
+      "next track",
+      "skip"
+    ]
+  },
+  {
+    "name": "spotify_now_playing",
+    "description": "Say which track is currently playing in Spotify.",
+    "scope": "Spotify",
+    "script": "tell application \"Spotify\" to return name of current track & \" by \" & artist of current track",
+    "speak": "This is {result}",
+    "examples": [
+      "what song is this",
+      "who is this"
+    ]
+  },
+  {
+    "name": "terminal_run",
+    "description": "Type and run a shell command in the front Terminal window (asks for confirmation).",
+    "scope": "Terminal",
+    "risky": true,
+    "args": [
+      {
+        "name": "command",
+        "kind": "text",
+        "instructions": "The shell command the user wants run in Terminal."
+      }
+    ],
+    "script": "tell application \"Terminal\"\n  activate\n  do script \"{{command}}\" in front window\nend tell\nreturn \"ran command\"",
+    "speak": "done",
+    "examples": [
+      "run git status in the terminal"
+    ]
+  }
+]

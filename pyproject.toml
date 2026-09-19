@@ -1,0 +1,32 @@
+[project]
+name = "macbrow"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "jev-ultrafast",
+    "livekit-agents[gradium,openai,silero]~=1.8",
+    "openai>=1.60",
+    "python-dotenv>=1.2.3",
+    "typesafe-sdk>=0.7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.uv.sources]
+jev-ultrafast = { git = "https://github.com/browser-use/jev-ultrafast" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "PIE", "SIM"]
+ignore = ["E501", "SIM102", "SIM105", "SIM108", "B905"]
