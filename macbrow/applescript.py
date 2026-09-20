@@ -67,21 +67,30 @@ def _app_name(raw: str) -> str:
     return name[: -len(".app")] if name.endswith(".app") else name
 
 
-async def get_active_app() -> str:
-    for prop in (_BUNDLE, _PROC):
-        res = await run_applescript(_FRONTMOST.format(prop), timeout=5)
+# Asking for a whole list of bundle files errors outright if any process starts or exits
+# mid-enumeration -- which is exactly what open_app causes. Retry before dropping to process
+# names, or a launch would silently put the old vocabulary back in front of the router.
+_BUNDLE_ATTEMPTS = 3
+
+
+async def _app_names(template: str) -> str | None:
+    for prop in (*(_BUNDLE,) * _BUNDLE_ATTEMPTS, _PROC):
+        res = await run_applescript(template.format(prop), timeout=5)
         if res.ok and res.output:
-            return _app_name(res.output)
-    return "Finder"
+            return res.output
+    return None
+
+
+async def get_active_app() -> str:
+    out = await _app_names(_FRONTMOST)
+    return _app_name(out) if out else "Finder"
 
 
 async def get_running_apps() -> list[str]:
-    for prop in (_BUNDLE, _PROC):
-        res = await run_applescript(_RUNNING.format(prop), timeout=5)
-        if res.ok and res.output:
-            apps = [_app_name(a) for a in res.output.split(",") if a.strip()]
-            return sorted(set(apps), key=str.lower)
-    return ["Finder"]
+    out = await _app_names(_RUNNING)
+    if not out:
+        return ["Finder"]
+    return sorted({_app_name(a) for a in out.split(",") if a.strip()}, key=str.lower)
 
 
 _APP_DIRS = (Path("/Applications"), Path("/System/Applications"), Path.home() / "Applications")
