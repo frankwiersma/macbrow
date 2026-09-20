@@ -102,6 +102,10 @@ cp .env.example .env.local   # DEEPGRAM_API_KEY (deepgram.com), TYPESAFE_API_KEY
   debugging for this browser instance**. Click Allow on Chrome's sheet at first connection.
 - `MACBROW_CHROME_PROFILE_EMAIL` pins Chrome to one Google account; unset, the last-used
   profile is kept.
+- `MACBROW_IDLE_TIMEOUT_S` (default 900) quits after 15 minutes with no speech. Deepgram
+  streams for as long as the session is open — VAD only takes a copy of the audio for turn
+  detection, it never gates the stream — so an agent left running bills wall-clock time
+  having heard nothing. Set 0 to disable.
 - `MACBROW_SPEAK_RESULTS=0` stops it reading results back after an action. It still asks
   questions, requests confirmation and reports failures out loud — useful on speakers,
   where the mic otherwise picks up its own voice and answers itself.

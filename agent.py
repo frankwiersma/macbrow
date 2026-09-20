@@ -10,8 +10,12 @@ LLM defaults to LiveKit Inference (openai/gpt-5-mini); MACBROW_LLM_PROVIDER=open
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import signal
+import threading
+import time
 
 from dotenv import load_dotenv
 
@@ -48,6 +52,10 @@ LLM_PROVIDER = os.environ.get("MACBROW_LLM_PROVIDER", "livekit")  # "livekit" | 
 STT_MODEL = os.environ.get("DEEPGRAM_STT_MODEL", "nova-3")
 # Deepgram bakes the voice into the TTS model name (aura-2-<voice>-en), so there is no separate voice id.
 TTS_MODEL = os.environ.get("DEEPGRAM_TTS_MODEL", "aura-2-andromeda-en")
+# Deepgram bills for as long as the socket is open, silence included -- VAD only forwards a copy
+# of the audio for turn detection, it never gates the stream. So an agent left running costs
+# wall-clock time having heard nothing. End the session after this long without speech; 0 disables.
+IDLE_TIMEOUT_S = float(os.environ.get("MACBROW_IDLE_TIMEOUT_S", "900"))
 
 
 def build_chat_llm() -> llm.LLM:
@@ -74,11 +82,13 @@ class MacBrowAgent(Agent):
     def __init__(self, mac: DynamicMacAgent) -> None:
         super().__init__(instructions=INSTRUCTIONS)
         self.mac = mac
+        self.last_speech = time.monotonic()
 
     async def on_user_turn_completed(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> None:
         text = new_message.text_content or ""
         if not text.strip():
             raise StopResponse()
+        self.last_speech = time.monotonic()
 
         outcome = await self.mac.handle(text)
         r = outcome.route
@@ -137,13 +147,42 @@ async def entrypoint(ctx: agents.JobContext) -> None:
         preemptive_generation=False,  # we decide per-turn whether the LLM runs at all
     )
 
+    watchdog: asyncio.Task[None] | None = None
+
     async def _close() -> None:
+        if watchdog is not None:
+            watchdog.cancel()
         await mac.aclose()
 
     ctx.add_shutdown_callback(_close)
 
-    log.info("pipeline: stt=deepgram/%s tts=deepgram/%s llm=%s", STT_MODEL, TTS_MODEL, LLM_PROVIDER)
-    await session.start(agent=MacBrowAgent(mac), room=ctx.room)
+    async def _idle_shutdown(agent: MacBrowAgent) -> None:
+        while True:
+            await asyncio.sleep(min(30.0, IDLE_TIMEOUT_S))
+            idle = time.monotonic() - agent.last_speech
+            if idle >= IDLE_TIMEOUT_S:
+                log.info("no speech for %.0fs; closing the session so the STT stream stops billing", idle)
+                # shutdown() ends the job and closes the Deepgram sockets, but leaves the worker
+                # process up waiting for the next job, which reads as "still running" to anyone
+                # checking. Ask for the clean exit Ctrl-C gives, once the session has closed.
+                # A plain timer thread, because shutdown() cancels this task and stops the job's
+                # event loop -- neither an await nor call_later survives it. Process-directed,
+                # because the job runs off the main thread, where a raised signal is never handled.
+                threading.Timer(3.0, os.kill, (os.getpid(), signal.SIGINT)).start()
+                get_job_context().shutdown(reason="idle timeout")
+                return
+
+    log.info(
+        "pipeline: stt=deepgram/%s tts=deepgram/%s llm=%s idle_timeout=%s",
+        STT_MODEL,
+        TTS_MODEL,
+        LLM_PROVIDER,
+        f"{IDLE_TIMEOUT_S:.0f}s" if IDLE_TIMEOUT_S > 0 else "off",
+    )
+    agent = MacBrowAgent(mac)
+    await session.start(agent=agent, room=ctx.room)
+    if IDLE_TIMEOUT_S > 0:
+        watchdog = asyncio.create_task(_idle_shutdown(agent), name="macbrow-idle")
     greeting = "macbrow ready." if policy.ENABLED else "macbrow ready. Warning: the safety policy is off."
     session.say(greeting, add_to_chat_ctx=False)
 
