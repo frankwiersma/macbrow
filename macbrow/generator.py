@@ -1,7 +1,7 @@
 """Fallback tier: an LLM writes a new AppleScript tool for an unseen request.
 
 Default backend is LiveKit Inference (hosted, billed to your LiveKit Cloud project; needs
-LIVEKIT_URL/API_KEY/API_SECRET). Set MACBROW_LLM_PROVIDER=lmstudio to use a local model instead.
+LIVEKIT_URL/API_KEY/API_SECRET). Set MACBROW_LLM_PROVIDER=openai to use any OpenAI-compatible endpoint instead.
 
 Runs once per novel intent (a couple of seconds); the result is persisted to
 ``tools/learned.json`` so Jev routes to it in ~150ms next time. Generated tools
@@ -31,11 +31,13 @@ from .registry import BUILTIN_PLACEHOLDERS, RISKY_PATTERNS, ArgSpec, PolicyError
 
 log = logging.getLogger("macbrow.generator")
 
-PROVIDER = os.environ.get("MACBROW_LLM_PROVIDER", "livekit")  # "livekit" | "lmstudio"
-LMSTUDIO_BASE_URL = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+PROVIDER = os.environ.get("MACBROW_LLM_PROVIDER", "livekit")  # "livekit" | "openai"
+# "openai" is any OpenAI-compatible endpoint: LM Studio, Ollama, api.openai.com, a local gateway.
+OPENAI_BASE_URL = os.environ.get("MACBROW_OPENAI_BASE_URL", "http://localhost:1234/v1")
+OPENAI_API_KEY = os.environ.get("MACBROW_OPENAI_API_KEY", "local")
 MODEL = os.environ.get("MACBROW_CODEGEN_MODEL", "openai/gpt-5-mini" if PROVIDER == "livekit" else "qwen/qwen3.5-9b")
-# LiveKit/OpenAI: "low" is plenty for short scripts. LM Studio + Qwen 3.5: "none", otherwise the
-# model spends the whole budget in the reasoning channel and returns empty text.
+# LiveKit: "low" is plenty for short scripts. Local Qwen 3.5: "none", otherwise the model spends
+# the whole budget in the reasoning channel and returns empty text.
 REASONING_EFFORT = os.environ.get("MACBROW_REASONING_EFFORT", "low" if PROVIDER == "livekit" else "none")
 MAX_ATTEMPTS = int(os.environ.get("MACBROW_CODEGEN_ATTEMPTS", "3"))  # first draft + compiler-guided repairs
 MAX_OUTPUT_TOKENS = int(os.environ.get("MACBROW_CODEGEN_MAX_TOKENS", "1500"))  # bounds a runaway generation
@@ -154,15 +156,15 @@ class ToolGenerator:
     ):
         self.registry = registry
         self.jev = jev
-        self.provider = PROVIDER if client is None else "lmstudio"
+        self.provider = PROVIDER if client is None else "openai"
         self.client: openai.AsyncOpenAI | None = None
         self.lk_llm: inference.LLM | None = None
         if self.provider == "livekit":
             self.lk_llm = inference.LLM(model=MODEL, extra_kwargs={"reasoning_effort": REASONING_EFFORT})
         else:
             self.client = client or openai.AsyncOpenAI(
-                base_url=LMSTUDIO_BASE_URL,
-                api_key=os.environ.get("LMSTUDIO_API_KEY", "lm-studio"),
+                base_url=OPENAI_BASE_URL,
+                api_key=OPENAI_API_KEY,
                 timeout=90.0,
                 max_retries=1,
             )

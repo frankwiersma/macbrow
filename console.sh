@@ -9,12 +9,12 @@ case "${1:-start}" in
     set -a; [ -f .env.local ] && source .env.local; set +a
     # Keys exported only in the interactive shell profile (e.g. ~/.zshrc) aren't visible to a
     # detached start; pull them in when missing.
-    for v in TYPESAFE_API_KEY GRADIUM_API_KEY; do
+    for v in TYPESAFE_API_KEY DEEPGRAM_API_KEY; do
       if [ -z "${(P)v}" ]; then
         val=$(zsh -ic "print -r -- \${$v}" 2>/dev/null); [ -n "$val" ] && export "$v=$val"
       fi
     done
-    missing=(); for v in TYPESAFE_API_KEY GRADIUM_API_KEY; do [ -z "${(P)v}" ] && missing+=("$v"); done
+    missing=(); for v in TYPESAFE_API_KEY DEEPGRAM_API_KEY; do [ -z "${(P)v}" ] && missing+=("$v"); done
     if [ ${#missing[@]} -gt 0 ]; then echo "missing: ${missing[*]} (set in .env.local or your shell profile)"; exit 1; fi
     nohup uv run python agent.py console > "$LOG" 2>&1 &
     sleep 3; echo "started (pid $!), log: $LOG" ;;

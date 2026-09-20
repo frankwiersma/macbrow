@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "jev-ultrafast",
-    "livekit-agents[gradium,openai,silero]~=1.8",
+    "livekit-agents[deepgram,openai,silero]~=1.8",
     "openai>=1.60",
     "python-dotenv>=1.2.3",
     "typesafe-sdk>=0.7",

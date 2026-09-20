@@ -4,6 +4,10 @@ Talk to your Mac. Say a command and it runs as AppleScript; say a web task and i
 your Chrome. Routing takes about 300 ms because a System One model *chooses* instead of
 generating.
 
+> A fork of [timpratim/macbrow](https://github.com/timpratim/macbrow) with the voice layer
+> moved from Gradium to Deepgram. Everything else — the Jev router, the AppleScript tool
+> registry, the browser tier — is unchanged.
+
 > **Experimental. Not for production.** This prototype lets a language model run scripts
 > and click around a browser on your machine. An early version, asked to "clean up my
 > desktop", moved every file on the Desktop into a folder. The safety policy in
@@ -11,14 +15,14 @@ generating.
 > first, and don't point voice control at a machine whose setup you can't afford to lose.
 
 ```
-Gradium STT ─► Jev picks a tool + its arguments (one request, ~300 ms) ─► AppleScript ─► Gradium TTS
+Deepgram STT ─► Jev picks a tool + its arguments (one request, ~300 ms) ─► AppleScript ─► Deepgram TTS
                  ├─ website task ─► jev-ultrafast drives Chrome, one Jev request per step
                  ├─ unknown action ─► LLM writes a new tool, checked, cached for next time
                  └─ small talk ─► LLM, one sentence
 ```
 
-Stack: [Gradium](https://gradium.ai) streaming speech-to-text and text-to-speech for the voice
-in and out (via the [Gradium plugin for LiveKit Agents](https://docs.livekit.io/agents/models/tts/gradium/)),
+Stack: [Deepgram](https://deepgram.com) streaming speech-to-text and text-to-speech for the voice
+in and out (via the [Deepgram plugin for LiveKit Agents](https://docs.livekit.io/agents/models/tts/deepgram/)),
 [LiveKit Agents](https://docs.livekit.io/agents/) for the voice loop, [TypeSafe's Jev](https://docs.typesafe.ai)
 for every decision, [jev-ultrafast](https://github.com/browser-use/jev-ultrafast) (Browser Use ×
 TypeSafe) for the browser, and an LLM (GPT-5-mini via LiveKit Inference, or a local model in
@@ -54,22 +58,42 @@ steps and 11 s; "the return date should be November 4th" as a follow-up in the s
 steps and 3.7 s; "play the Love Hypothesis trailer" from end of speech to video playing,
 1.6 s.
 
-## Voice: Gradium
+## Voice: Deepgram
 
-Every word macbrow hears and says goes through [Gradium](https://gradium.ai). Gradium's
-streaming STT turns the mic into text with end-of-turn detection, and its TTS speaks the
+Every word macbrow hears and says goes through [Deepgram](https://deepgram.com). Nova-3
+streaming STT turns the mic into text with end-of-turn detection, and Aura-2 TTS speaks the
 replies; the greeting, confirmations, clarifying questions and results all come from the
-same voice. Both run through the official `livekit-plugins-gradium` package, so swapping
-voices is one env var (`GRADIUM_VOICE_ID`) and the rest of the pipeline never touches audio.
+same voice. Both run through the official `livekit-plugins-deepgram` package. Deepgram bakes
+the voice into the model name, so swapping voices is one env var (`DEEPGRAM_TTS_MODEL`, e.g.
+`aura-2-thalia-en`) and the rest of the pipeline never touches audio.
 
-Get an API key at [gradium.ai](https://gradium.ai) and see the [Gradium docs](https://docs.gradium.ai)
-for the voice library, model names and the raw STT/TTS APIs.
+Get an API key at [console.deepgram.com](https://console.deepgram.com) and see the
+[Deepgram docs](https://developers.deepgram.com) for the voice library, model names and the
+raw STT/TTS APIs.
+
+### Why Deepgram rather than Gradium
+
+Both are drop-in LiveKit plugins, so the swap touched only [`agent.py`](agent.py) — the rest
+of the pipeline never sees audio. What decided it:
+
+- **Language coverage.** Nova-3 transcribes and Aura-2 speaks a much wider set of languages.
+  Gradium concentrates on English, French, German, Spanish and Portuguese; Dutch is not among
+  them, which rules it out for a Dutch-speaking user. Set `MACBROW_LANG=nl` and this works.
+- **Deployment options.** Deepgram has a mature self-hosted story (Docker/Kubernetes) if you
+  don't want audio leaving your network. Gradium is API-only today.
+- **Breadth.** Batch plus streaming transcription, custom vocabulary (`keyterm`), regional
+  endpoints, and a single-socket Voice Agent API if you ever want to collapse STT→LLM→TTS.
+
+Gradium remains the more interesting option if you want instant voice cloning or are chasing
+the last few milliseconds of TTS latency in one of its five languages — it publishes
+first-audio benchmarks ahead of Aura-2, though those are vendor-run. Swapping back is a
+plugin import and two env vars.
 
 ## Setup
 
 ```bash
 uv sync
-cp .env.example .env.local   # GRADIUM_API_KEY (gradium.ai), TYPESAFE_API_KEY, LIVEKIT_* (or lk app env -w)
+cp .env.example .env.local   # DEEPGRAM_API_KEY (deepgram.com), TYPESAFE_API_KEY, LIVEKIT_* (or lk app env -w)
 ```
 
 - macOS asks for Automation access per app the first time. Grant it in System Settings ▸
@@ -78,7 +102,11 @@ cp .env.example .env.local   # GRADIUM_API_KEY (gradium.ai), TYPESAFE_API_KEY, L
   debugging for this browser instance**. Click Allow on Chrome's sheet at first connection.
 - `MACBROW_CHROME_PROFILE_EMAIL` pins Chrome to one Google account; unset, the last-used
   profile is kept.
-- `MACBROW_LLM_PROVIDER=lmstudio` uses a local model on port 1234 instead of LiveKit
+- `MACBROW_SPEAK_RESULTS=0` stops it reading results back after an action. It still asks
+  questions, requests confirmation and reports failures out loud — useful on speakers,
+  where the mic otherwise picks up its own voice and answers itself.
+- `MACBROW_LLM_PROVIDER=openai` points the LLM at any OpenAI-compatible endpoint
+  (`MACBROW_OPENAI_BASE_URL`) — LM Studio on port 1234, Ollama, or a hosted gateway — instead of LiveKit
   Inference.
 
 ## Run
@@ -112,7 +140,7 @@ and the greeting says so out loud.
 
 | Path | Role |
 |---|---|
-| [`agent.py`](agent.py) | LiveKit entrypoint: Gradium STT/TTS, router before LLM |
+| [`agent.py`](agent.py) | LiveKit entrypoint: Deepgram STT/TTS, router before LLM |
 | [`macbrow/router.py`](macbrow/router.py) | Jev routing, speculative arguments, follow-up and completeness judgments |
 | [`macbrow/agent.py`](macbrow/agent.py) | State machine: act, ask, confirm, learn |
 | [`macbrow/registry.py`](macbrow/registry.py) + [`tools/seed.json`](tools/seed.json) | Tools with typed argument slots; learned ones go to `tools/learned.json` |

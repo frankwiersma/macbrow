@@ -11,6 +11,7 @@ AWAITING_CONFIRM    -> a risky tool is staged; Jev judges whether the next
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -32,6 +33,9 @@ FORBIDDEN_THRESHOLD = 0.6  # p(goal requires buying/paying/signing in) at or abo
 ACHIEVED_THRESHOLD = 0.5  # p(final page shows the success criterion); below: one more round, then be honest
 BROWSER_MEMORY_S = 15 * 60  # how long a finished browser task stays "recent" for follow-ups
 ARG_CONFIDENCE_FLOOR = 0.35  # weakest argument below this -> ask instead of act
+# Read the result of a finished action back out loud. 0: act silently. Questions, confirmations,
+# refusals and failures are still spoken either way -- muting those would strand the conversation.
+SPEAK_RESULTS = os.environ.get("MACBROW_SPEAK_RESULTS", "1") != "0"
 
 
 PRONOUNS = {
@@ -374,11 +378,13 @@ class DynamicMacAgent:
                 f"I got as far as I could, but I can't confirm the page shows {success}.{where} Take a look."
             )
             return
-        outcome.speak = result.spoken
         if result.status in ("blocked", "timeout"):
+            outcome.speak = result.spoken
             reason = await self._explain_stall(goal, result)
             if reason:
                 outcome.speak = f"{result.spoken} {reason}"
+        elif SPEAK_RESULTS:
+            outcome.speak = result.spoken
 
     async def _verify_outcome(self, objective: str, success: str, result: browser_task.BrowserResult) -> float | None:
         """Independent check that the final page actually shows what the user asked for."""
@@ -520,6 +526,8 @@ class DynamicMacAgent:
                 "site": BROWSER_OPENERS[tool.name](args),
                 "finished_at": time.time(),
             }
+        if not SPEAK_RESULTS:
+            return
         if tool.speak == "done":
             outcome.speak = f"{prefix}Done." if prefix else "Done."
         elif tool.speak == "result":

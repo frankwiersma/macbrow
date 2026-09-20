@@ -49,21 +49,39 @@ def escape_applescript_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-_FRONTMOST = 'tell application "System Events" to get name of first application process whose frontmost is true'
-_RUNNING = 'tell application "System Events" to get name of every application process whose background only is false'
+# A process name ("MSTeams") is not always the app's bundle name ("Microsoft Teams"), and only the
+# bundle name is what `tell application "..."` resolves and what get_installed_apps() reports. Ask
+# System Events for the process's bundle file so both lists speak one vocabulary; fall back to the
+# process name for the rare process that has no file.
+_BUNDLE = "name of file of"
+_PROC = "name of"
+_FRONTMOST = 'tell application "System Events" to get {} first application process whose frontmost is true'
+_RUNNING = (
+    'tell application "System Events" to get {} every application process whose background only is false'
+)
+
+
+def _app_name(raw: str) -> str:
+    """'Microsoft Teams.app' -> 'Microsoft Teams'."""
+    name = raw.strip()
+    return name[: -len(".app")] if name.endswith(".app") else name
 
 
 async def get_active_app() -> str:
-    res = await run_applescript(_FRONTMOST, timeout=5)
-    return res.output if res.ok and res.output else "Finder"
+    for prop in (_BUNDLE, _PROC):
+        res = await run_applescript(_FRONTMOST.format(prop), timeout=5)
+        if res.ok and res.output:
+            return _app_name(res.output)
+    return "Finder"
 
 
 async def get_running_apps() -> list[str]:
-    res = await run_applescript(_RUNNING, timeout=5)
-    if not res.ok or not res.output:
-        return ["Finder"]
-    apps = [a.strip() for a in res.output.split(",") if a.strip()]
-    return sorted(set(apps), key=str.lower)
+    for prop in (_BUNDLE, _PROC):
+        res = await run_applescript(_RUNNING.format(prop), timeout=5)
+        if res.ok and res.output:
+            apps = [_app_name(a) for a in res.output.split(",") if a.strip()]
+            return sorted(set(apps), key=str.lower)
+    return ["Finder"]
 
 
 _APP_DIRS = (Path("/Applications"), Path("/System/Applications"), Path.home() / "Applications")

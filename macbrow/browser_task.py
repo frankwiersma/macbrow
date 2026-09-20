@@ -215,7 +215,7 @@ async def compose_goal(utterance: str, context: dict[str, Any]) -> ComposedGoal:
 
 def _structured_sync(system: str, user: str, cls: type[BaseModel]) -> str:
     """One structured-output completion on the configured LLM backend; returns the raw JSON text."""
-    from .generator import LMSTUDIO_BASE_URL, PROVIDER  # late import: generator pulls livekit
+    from .generator import OPENAI_API_KEY, OPENAI_BASE_URL, PROVIDER  # late import: generator pulls livekit
 
     if PROVIDER == "livekit":
         from livekit.agents import inference, llm
@@ -239,7 +239,7 @@ def _structured_sync(system: str, user: str, cls: type[BaseModel]) -> str:
     from livekit.agents.llm import utils as llm_utils
 
     client = openai.OpenAI(
-        base_url=LMSTUDIO_BASE_URL, api_key=os.environ.get("LMSTUDIO_API_KEY", "lm-studio"), timeout=30
+        base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY, timeout=30
     )
     resp = client.chat.completions.create(
         model=os.environ.get("MACBROW_CHAT_MODEL", "qwen/qwen3.5-9b"),
@@ -256,7 +256,7 @@ def _field_text_sync(context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Replacement for jev_ultrafast.model.field_text: same contract, our LLM backend."""
     from jev_ultrafast.questions import TEXT_VALUE
 
-    from .generator import LMSTUDIO_BASE_URL, PROVIDER  # late import: generator pulls livekit
+    from .generator import OPENAI_API_KEY, OPENAI_BASE_URL, PROVIDER  # late import: generator pulls livekit
 
     started = time.perf_counter()
     if PROVIDER == "livekit":
@@ -283,7 +283,7 @@ def _field_text_sync(context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         from livekit.agents.llm import utils as llm_utils
 
         client = openai.OpenAI(
-            base_url=LMSTUDIO_BASE_URL, api_key=os.environ.get("LMSTUDIO_API_KEY", "lm-studio"), timeout=30
+            base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY, timeout=30
         )
         model_name = os.environ.get("MACBROW_CHAT_MODEL", "qwen/qwen3.5-9b")
         resp = client.chat.completions.create(

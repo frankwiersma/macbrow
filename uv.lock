@@ -980,8 +980,8 @@ wheels = [
 codecs = [
     { name = "numpy" },
 ]
-gradium = [
-    { name = "livekit-plugins-gradium" },
+deepgram = [
+    { name = "livekit-plugins-deepgram" },
 ]
 images = [
     { name = "pillow" },
@@ -1059,17 +1059,16 @@ wheels = [
 ]
 
 [[package]]
-name = "livekit-plugins-gradium"
+name = "livekit-plugins-deepgram"
 version = "1.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "aiohttp" },
-    { name = "livekit" },
-    { name = "livekit-agents" },
+    { name = "livekit-agents", extra = ["codecs"] },
+    { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/e9/1c932e91ee5670ab1d53d29609141cd22feb880f6ed5428df49f1cf30105/livekit_plugins_gradium-1.8.1.tar.gz", hash = "sha256:e050fc23eb6cf84e84da9f988b2952386f1e6d5380c402774890770f312c2b1b", size = 9198, upload-time = "2026-09-10T18:59:44.569Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/3d/f2ac4970534543bc66270d30d74fccddfd51141a51b56ca2a2af0b1f5af9/livekit_plugins_deepgram-1.8.1.tar.gz", hash = "sha256:574ee80de12b09dc4203d723e02b6d0ba9f35bcf034b90da90a3fb7ef2640246", size = 25152, upload-time = "2026-09-10T18:59:21.128Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/4b/9c135b037352ae8a387922f60595f86ade5638e9f06a40e2ae47036c5c0b/livekit_plugins_gradium-1.8.1-py3-none-any.whl", hash = "sha256:67c0857f262b43e06f3cfcf36ab282ba62fbcfa417b838f3f25eea383c05377a", size = 11409, upload-time = "2026-09-10T18:59:43.518Z" },
+    { url = "https://files.pythonhosted.org/packages/30/12/a3534f143759b0b24a387cbda0f02f30af655c3748dcdbad3b76c1650dcc/livekit_plugins_deepgram-1.8.1-py3-none-any.whl", hash = "sha256:9ccde8f1ba6257e89dec66c8db9259037c36529e8af3f4b11af2ffb26b33d442", size = 32284, upload-time = "2026-09-10T18:59:19.807Z" },
 ]
 
 [[package]]
@@ -1118,7 +1117,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "jev-ultrafast" },
-    { name = "livekit-agents", extra = ["gradium", "openai", "silero"] },
+    { name = "livekit-agents", extra = ["deepgram", "openai", "silero"] },
     { name = "openai" },
     { name = "python-dotenv" },
     { name = "typesafe-sdk" },
@@ -1133,7 +1132,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jev-ultrafast", git = "https://github.com/browser-use/jev-ultrafast" },
-    { name = "livekit-agents", extras = ["gradium", "openai", "silero"], specifier = "~=1.8" },
+    { name = "livekit-agents", extras = ["deepgram", "openai", "silero"], specifier = "~=1.8" },
     { name = "openai", specifier = ">=1.60" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "typesafe-sdk", specifier = ">=0.7" },
