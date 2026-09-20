@@ -14,16 +14,28 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from livekit import agents
-from livekit.agents import Agent, AgentServer, AgentSession, StopResponse, get_job_context, inference, llm
-from livekit.plugins import deepgram, silero
-from livekit.plugins import openai as lk_openai
 
-from macbrow import generator, policy
-from macbrow.agent import DynamicMacAgent
-
+# Before any macbrow import: those modules read their configuration at import time, so loading
+# the env afterwards leaves them on defaults unless the caller exported everything first (which
+# is what console.sh does, and why running agent.py directly used to behave differently).
 load_dotenv(".env.local")
 load_dotenv()
+
+from livekit import agents  # noqa: E402
+from livekit.agents import (  # noqa: E402
+    Agent,
+    AgentServer,
+    AgentSession,
+    StopResponse,
+    get_job_context,
+    inference,
+    llm,
+)
+from livekit.plugins import deepgram, silero  # noqa: E402
+from livekit.plugins import openai as lk_openai  # noqa: E402
+
+from macbrow import generator, policy  # noqa: E402
+from macbrow.agent import DynamicMacAgent  # noqa: E402
 
 log = logging.getLogger("macbrow.voice")
 
